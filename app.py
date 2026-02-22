@@ -32,13 +32,6 @@ db = SQLAlchemy(app)
 jwt = JWTManager(app)
 CORS(app)
 
-# Create tables on startup
-with app.app_context():
-    try:
-        db.create_all()
-    except Exception as e:
-        print(f"Database sync error: {e}")
-
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -752,6 +745,8 @@ def init_db():
         db.session.commit()
         print("✅ Database initialized successfully!")
 
+# Initialize database on import (for Render/Gunicorn)
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)
