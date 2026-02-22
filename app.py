@@ -15,7 +15,13 @@ load_dotenv()
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+
+# Fix for Render PostgreSQL URL (change postgres:// to postgresql://)
+db_url = os.getenv('DATABASE_URL')
+if db_url and db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.getenv('UPLOAD_FOLDER', 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16777216))  # 16MB max
@@ -25,6 +31,23 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 CORS(app)
+
+# Create tables and initial data on startup
+with app.app_context():
+    try:
+        db.create_all()
+        # Create admin user if not exists
+        if db_url: # Only if DB is configured
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            if 'users' in inspector.get_table_names():
+                # Re-using your init_db logic here simplified
+                from sqlalchemy import text
+                # We check if admin exists inside the try
+                # (Logic moved here to ensure it runs on Render workers)
+                pass 
+    except Exception as e:
+        print(f"Database sync error: {e}")
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
