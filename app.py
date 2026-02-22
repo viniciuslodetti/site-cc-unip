@@ -32,20 +32,10 @@ db = SQLAlchemy(app)
 jwt = JWTManager(app)
 CORS(app)
 
-# Create tables and initial data on startup
+# Create tables on startup
 with app.app_context():
     try:
         db.create_all()
-        # Create admin user if not exists
-        if db_url: # Only if DB is configured
-            from sqlalchemy import inspect
-            inspector = inspect(db.engine)
-            if 'users' in inspector.get_table_names():
-                # Re-using your init_db logic here simplified
-                from sqlalchemy import text
-                # We check if admin exists inside the try
-                # (Logic moved here to ensure it runs on Render workers)
-                pass 
     except Exception as e:
         print(f"Database sync error: {e}")
 
