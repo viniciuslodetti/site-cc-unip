@@ -781,10 +781,29 @@ def toggle_camisa_paga(user_id):
 def init_db():
     """Initialize database with sample data"""
     with app.app_context():
+        # Handle database migrations (add missing columns)
+        try:
+            from sqlalchemy import text
+            # Try to add status_esporte safely
+            db.session.execute(text("ALTER TABLE users ADD COLUMN status_esporte VARCHAR(50) DEFAULT 'Inscrito'"))
+            db.session.commit()
+            print("Migrated: Added status_esporte column")
+        except Exception:
+            db.session.rollback()
+            # If it fails, column probably already exists, so we ignore
+            pass
+
         db.create_all()
         
         # Create admin user if not exists
-        if not User.query.filter_by(ra='admin').first():
+        try:
+            admin_exists = User.query.filter_by(ra='admin').first()
+        except Exception:
+            # Fallback if the database is still in a weird state
+            db.session.rollback()
+            admin_exists = None
+
+        if not admin_exists:
             admin = User(
                 ra='admin',
                 nome='Administrador',
