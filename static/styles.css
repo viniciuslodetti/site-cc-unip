@@ -640,12 +640,16 @@ body::before {
     border-radius: var(--radius-lg);
     overflow: hidden;
     transition: all var(--transition-base);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .post-card:hover {
-    border-color: var(--border-light);
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-4px);
+    border-color: var(--primary-500);
+    box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
+    transform: translateY(-8px);
 }
 
 .post-image {
@@ -883,6 +887,7 @@ body::before {
     -webkit-text-fill-color: initial !important;
     background: none !important;
     -webkit-background-clip: border-box !important;
+    background-clip: border-box !important;
     display: inline-block;
 }
 

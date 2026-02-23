@@ -238,6 +238,7 @@ function renderHome(container) {
 async function loadRecentPosts(container) {
     try {
         const data = await apiCall('/api/posts');
+        state.posts = data; // Store all posts in state
         const recentPosts = data.slice(0, 3);
         if (recentPosts.length > 0) {
             const postsHTML = `
@@ -283,7 +284,7 @@ function renderLogin(container) {
     `;
 }
 
-function handleLogin(event) {
+window.handleLogin = function (event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     login(formData.get('ra'), formData.get('senha'));
@@ -344,7 +345,7 @@ function renderRegister(container) {
     `;
 }
 
-function handleRegister(event) {
+window.handleRegister = function (event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     const data = {
@@ -533,7 +534,7 @@ async function renderPosts(container) {
                     <p class="hero-subtitle">Avisos, fotos e atualizações sobre jogos</p>
                 </div>
                 ${data.length === 0 ? '<p class="text-center">Nenhuma postagem ainda</p>' : `
-                    <div class="grid grid-2">
+                    <div class="grid grid-3">
                         ${data.map(post => createPostCard(post)).join('')}
                     </div>
                 `}
@@ -548,21 +549,58 @@ function createPostCard(post) {
     const typeIcons = { 'aviso': '📢', 'foto': '📸', 'jogo': '⚽' };
     const icon = typeIcons[post.tipo] || '📝';
     const date = new Date(post.created_at).toLocaleDateString('pt-BR');
+    const truncatedText = post.conteudo.length > 80 ? post.conteudo.substring(0, 80) + '...' : post.conteudo;
+
     return `
-        <div class="post-card">
-            ${post.imagem_url ? `<img src="${post.imagem_url}" alt="${post.titulo}" class="post-image">` : ''}
-            <div class="post-content">
-                <div class="post-header">
-                    <div>
-                        <h3 class="post-title">${icon} ${post.titulo}</h3>
-                        <p class="post-meta">Por ${post.admin_nome || 'Admin'} • ${date}</p>
-                    </div>
-                    <span class="badge badge-${post.tipo === 'aviso' ? 'warning' : post.tipo === 'jogo' ? 'success' : 'info'}">${post.tipo}</span>
+        <div class="post-card" onclick="window.showFullPost(${post.id})" style="cursor: pointer; height: 100%; display: flex; flex-direction: column;">
+            ${post.imagem_url ? `<img src="${post.imagem_url}" alt="${post.titulo}" class="post-image" style="height: 180px; width: 100%; object-fit: cover;">` : ''}
+            <div class="post-content" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="post-header" style="margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
+                    <h3 class="post-title" style="font-size: 1rem; margin: 0; line-height: 1.3;">${icon} ${post.titulo}</h3>
+                    <span class="badge badge-${post.tipo === 'aviso' ? 'warning' : post.tipo === 'jogo' ? 'success' : 'info'}" style="font-size: 0.65rem; padding: 2px 6px;">${post.tipo}</span>
                 </div>
-                <p class="post-text">${post.conteudo}</p>
+                <p class="post-meta" style="font-size: 0.75rem; margin-bottom: 0.75rem; color: var(--text-tertiary);">${date}</p>
+                <p class="post-text" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin: 0;">${truncatedText}</p>
             </div>
         </div>
     `;
+}
+
+window.showFullPost = function (postId) {
+    const post = state.posts.find(p => p.id === postId);
+    if (!post) return;
+
+    const date = new Date(post.created_at).toLocaleDateString('pt-BR');
+
+    const content = `
+        <div class="full-post-view" style="display: flex; gap: 2rem; flex-wrap: wrap; align-items: start;">
+            ${post.imagem_url ? `
+                <div style="flex: 1; min-width: 280px;">
+                    <img src="${post.imagem_url}" alt="${post.titulo}" style="width: 100%; border-radius: var(--radius-lg); object-fit: cover; max-height: 450px; box-shadow: var(--shadow-md);">
+                </div>
+            ` : ''}
+            <div style="flex: 1.2; min-width: 280px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <span class="badge badge-${post.tipo === 'aviso' ? 'warning' : post.tipo === 'jogo' ? 'success' : 'info'}" style="text-transform: uppercase; letter-spacing: 1px;">${post.tipo}</span>
+                    <p class="post-meta" style="margin: 0;">${date}</p>
+                </div>
+                <p class="post-meta" style="margin-bottom: 1.5rem; color: var(--text-tertiary);">Postado por: <strong>${post.admin_nome || 'Administrador'}</strong></p>
+                <div style="font-size: 1.1rem; line-height: 1.7; color: var(--text-primary); white-space: pre-wrap; background: rgba(255,255,255,0.03); padding: var(--spacing-lg); border-radius: var(--radius-md);">
+                    ${post.conteudo}
+                </div>
+            </div>
+        </div>
+    `;
+
+    // We adjust the modal width slightly for the side-by-side view
+    const modalContainer = document.getElementById('modalContainer');
+    showModal(post.titulo, content, [
+        { label: 'Fechar', class: 'btn-secondary', onclick: 'closeModal()' }
+    ]);
+
+    // Make modal wider for this specific view
+    const modal = modalContainer.querySelector('.modal');
+    if (modal) modal.style.maxWidth = '900px';
 }
 
 // ==================== ADMIN VIEW (FIXED) ====================
@@ -1072,7 +1110,7 @@ window.handleCreatePost = async function (event) {
 
 window.showCreatePostModal = function () {
     const content = `
-        < form id = "createPostForm" onsubmit = "event.preventDefault(); window.handleCreatePost(event)" >
+        <form id="createPostForm" onsubmit="event.preventDefault(); window.handleCreatePost(event)">
             <div class="form-group"><label class="form-label">Título</label><input type="text" class="form-input" name="titulo" required></div>
             <div class="form-group"><label class="form-label">Tipo</label>
                 <select class="form-select" name="tipo" required>
@@ -1087,7 +1125,7 @@ window.showCreatePostModal = function () {
                 <label class="btn btn-secondary" for="post-image-input" style="display:inline-block; cursor:pointer;">📷 Escolher Imagem</label>
                 <input type="file" id="post-image-input" class="form-file-input" name="imagem" accept="image/*" style="display:none;" onchange="this.previousElementSibling.textContent = this.files[0] ? '✅ ' + this.files[0].name : '📷 Escolher Imagem'">
             </div>
-        </form >
+        </form>
         `;
     showModal('Nova Postagem', content, [
         { label: 'Cancelar', class: 'btn-secondary', onclick: 'closeModal()' },
@@ -1115,10 +1153,10 @@ window.handleCreateSport = async function (event) {
 
 window.showCreateSportModal = function () {
     const content = `
-        < form id = "createSportForm" onsubmit = "event.preventDefault(); window.handleCreateSport(event)" >
+        <form id="createSportForm" onsubmit="event.preventDefault(); window.handleCreateSport(event)">
             <div class="form-group"><label class="form-label">Nome do Esporte</label><input type="text" class="form-input" name="nome" required></div>
             <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-textarea" name="descricao"></textarea></div>
-        </form >
+        </form>
         `;
     showModal('Novo Esporte', content, [
         { label: 'Cancelar', class: 'btn-secondary', onclick: 'closeModal()' },
@@ -1132,7 +1170,7 @@ window.handleEditSport = async function (event, sportId) {
     if (!form) return;
     const formData = new FormData(form);
     try {
-        await apiCall(`/ api / sports / ${sportId} `, {
+        await apiCall(`/api/sports/${sportId}`, {
             method: 'PUT',
             body: JSON.stringify({
                 nome: formData.get('nome'),
@@ -1151,10 +1189,10 @@ window.showEditSportModal = function (sportId) {
     const sport = state.sports.find(s => s.id === sportId);
     if (!sport) return;
     const content = `
-        < form id = "editSportForm" onsubmit = "event.preventDefault(); window.handleEditSport(event, ${sportId})" >
+        <form id="editSportForm" onsubmit="event.preventDefault(); window.handleEditSport(event, ${sportId})">
             <div class="form-group"><label class="form-label">Nome do Esporte</label><input type="text" class="form-input" name="nome" value="${sport.nome}" required></div>
             <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-textarea" name="descricao">${sport.descricao || ''}</textarea></div>
-        </form >
+        </form>
         `;
     showModal('Editar Esporte', content, [
         { label: 'Cancelar', class: 'btn-secondary', onclick: 'closeModal()' },
@@ -1261,7 +1299,7 @@ function renderShirtOrder(container) {
     }
 }
 
-async function handleShirtOrder(event) {
+window.handleShirtOrder = async function (event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     const num = formData.get('numero_camisa');

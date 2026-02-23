@@ -340,10 +340,19 @@ def update_user(user_id):
         
         # Only admin can change admin status, cargo and camisa_paga
         if current_user.is_admin:
-            if 'is_admin' in data:
-                user.is_admin = bool(data['is_admin'])
             if 'cargo' in data:
                 user.cargo = data['cargo']
+                # Automatically set is_admin based on cargo
+                if user.cargo == 'Admin':
+                    user.is_admin = True
+                else:
+                    user.is_admin = False
+            
+            if 'is_admin' in data:
+                user.is_admin = bool(data['is_admin'])
+            
+            if 'camisa_paga' in data:
+                user.camisa_paga = bool(data['camisa_paga'])
         
         db.session.commit()
         
