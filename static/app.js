@@ -324,7 +324,7 @@ function renderRegister(container) {
                     </div>
                     <div class="form-group">
                         <label class="form-label">Turma *</label>
-                        <input type="text" class="form-input" name="turma" required placeholder="Ex: A, B, C">
+                        <input type="text" class="form-input" name="turma" required placeholder="Ex: CC1P14, CC2P14, CC3P15">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Apelido (Opcional)</label>
@@ -994,7 +994,7 @@ window.handleEditUser = async function (event, userId) {
     const semestre = formData.get('semestre');
     const numeroCamisa = formData.get('numero_camisa');
     try {
-        await apiCall(`/ api / users / ${userId} `, {
+        await apiCall(`/api/users/${userId}`, {
             method: 'PUT',
             body: JSON.stringify({
                 nome: formData.get('nome'),
@@ -1018,7 +1018,7 @@ window.showEditUserModal = function (userId) {
     const user = state.users.find(u => u.id === userId);
     if (!user) return;
     const content = `
-        < form id = "editUserForm" onsubmit = "event.preventDefault(); window.handleEditUser(event, ${userId})" >
+        <form id="editUserForm" onsubmit="event.preventDefault(); window.handleEditUser(event, ${userId})">
             <div class="grid grid-2">
                 <div class="form-group"><label class="form-label">Nome</label><input type="text" class="form-input" name="nome" value="${user.nome}" required></div>
                 <div class="form-group"><label class="form-label">RA</label><input type="text" class="form-input" value="${user.ra}" disabled></div>
@@ -1047,7 +1047,7 @@ window.showEditUserModal = function (userId) {
                     <option value="Admin" ${user.cargo === 'Admin' ? 'selected' : ''}>Admin</option>
                 </select>
             </div>
-        </form >
+        </form>
         `;
     showModal('Editar Usuário', content, [
         { label: 'Cancelar', class: 'btn-secondary', onclick: 'closeModal()' },
