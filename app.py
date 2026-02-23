@@ -66,6 +66,7 @@ class User(db.Model):
     senha_hash = db.Column(db.String(255), nullable=False)
     cargo = db.Column(db.String(50), default='Aluno', nullable=False)  # Aluno, Professor, Responsável, Admin
     is_admin = db.Column(db.Boolean, default=False)
+    status_esporte = db.Column(db.String(50), default='Inscrito') # 'Inscrito', 'Titular'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -93,6 +94,7 @@ class User(db.Model):
             'camisa_paga': self.camisa_paga if self.camisa_paga is not None else False,
             'cargo': self.cargo,
             'is_admin': self.is_admin,
+            'status_esporte': self.status_esporte or 'Inscrito',
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
         if include_sports:
@@ -444,6 +446,7 @@ def join_sport(sport_id):
             user.sports = [] # Remove all other sports
         
         user.sports.append(sport)
+        user.status_esporte = 'Inscrito' # Reset status when joining new sport
         db.session.commit()
         
         return jsonify({
@@ -481,6 +484,43 @@ def leave_sport(sport_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/sports/<int:sport_id>', methods=['PUT'])
+@jwt_required()
+def update_sport(sport_id):
+    try:
+        user_id = int(get_jwt_identity())
+        current_user = User.query.get(user_id)
+        
+        if not current_user.is_admin:
+            return jsonify({'error': 'Acesso negado. Apenas administradores podem editar esportes'}), 403
+        
+        sport = Sport.query.get(sport_id)
+        if not sport:
+            return jsonify({'error': 'Esporte não encontrado'}), 404
+        
+        data = request.get_json()
+        
+        if 'nome' in data:
+            # Check if name already exists for other sports
+            existing = Sport.query.filter_by(nome=data['nome']).first()
+            if existing and existing.id != sport_id:
+                return jsonify({'error': 'Já existe um esporte com este nome'}), 400
+            sport.nome = data['nome']
+        
+        if 'descricao' in data:
+            sport.descricao = data['descricao']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Esporte atualizado com sucesso!',
+            'sport': sport.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/sports/<int:sport_id>', methods=['DELETE'])
 @jwt_required()
 def delete_sport(sport_id):
@@ -503,6 +543,35 @@ def delete_sport(sport_id):
         db.session.commit()
         
         return jsonify({'message': 'Esporte deletado com sucesso!'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/users/<int:user_id>/esporte-status', methods=['POST'])
+@jwt_required()
+def toggle_esporte_status(user_id):
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        if not current_user.is_admin:
+            return jsonify({'error': 'Acesso negado'}), 403
+            
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'Usuário não encontrado'}), 404
+            
+        data = request.get_json()
+        new_status = data.get('status')
+        
+        if new_status not in ['Inscrito', 'Titular']:
+            return jsonify({'error': 'Status inválido'}), 400
+            
+        user.status_esporte = new_status
+        db.session.commit()
+        
+        return jsonify({'message': f'Status do atleta atualizado para {new_status}', 'status': new_status}), 200
         
     except Exception as e:
         db.session.rollback()

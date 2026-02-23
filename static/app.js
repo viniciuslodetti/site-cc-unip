@@ -5,7 +5,8 @@ const state = {
     currentView: 'home',
     posts: [],
     sports: [],
-    users: []
+    users: [],
+    currentAdminTab: 'users'
 };
 
 // ==================== API HELPER ====================
@@ -422,9 +423,15 @@ async function renderDashboard(container) {
                     <h2 style="font-size: 2rem; font-weight: 700; margin-bottom: 1.5rem;">Esportes que Participo</h2>
                     <div class="grid grid-4">
                         ${state.user.sports.map(sport => `
-                            <div class="card">
+                            <div class="card" style="position: relative; overflow: hidden;">
                                 <h3 style="font-weight: 600; margin-bottom: 0.5rem;">${sport.nome}</h3>
-                                <p style="color: var(--text-secondary); font-size: 0.875rem;">${sport.descricao || ''}</p>
+                                <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">${sport.descricao || ''}</p>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span class="badge ${state.user.status_esporte === 'Titular' ? 'badge-success' : 'badge-info'}" style="font-size: 0.75rem;">
+                                        ${state.user.status_esporte || 'Inscrito'}
+                                    </span>
+                                </div>
+                                ${state.user.status_esporte === 'Titular' ? '<div style="position: absolute; top: 10px; right: 10px; font-size: 1.5rem;" title="Titular!">⭐</div>' : ''}
                             </div>
                         `).join('')}
                     </div>
@@ -614,7 +621,7 @@ window.renderAdmin = async function (container) {
             </div>
         `;
 
-        loadAdminTab('users');
+        loadAdminTab(state.currentAdminTab);
     } catch (error) {
         container.innerHTML = `<p class="text-center text-error">Erro ao carregar painel: ${error.message}</p>`;
     }
@@ -623,10 +630,21 @@ window.renderAdmin = async function (container) {
 window.switchTab = function (event, tabName) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     event.target.classList.add('active');
+    state.currentAdminTab = tabName;
     loadAdminTab(tabName);
 }
 
 window.loadAdminTab = function (tabName) {
+    state.currentAdminTab = tabName;
+    // Update active tab button if not already active
+    document.querySelectorAll('.tab').forEach(t => {
+        if (t.id === `tab-${tabName}`) {
+            t.classList.add('active');
+        } else {
+            t.classList.remove('active');
+        }
+    });
+
     const container = document.getElementById('tab-content');
     if (tabName === 'users') {
         renderUsersTable(container);
@@ -703,9 +721,10 @@ function renderSportsTable(container) {
                             <td>${sport.participants ? sport.participants.length : 0}</td>
                             <td>
                                 <div class="table-actions">
+                                    <button class="btn btn-small btn-info" onclick="window.showSportParticipants(${sport.id})" title="Ver Inscritos">👥</button>
+                                    <button class="btn btn-small btn-primary" onclick="window.showEditSportModal(${sport.id})" title="Editar">✏️</button>
                                     <button class="btn btn-small btn-danger" onclick="window.deleteSport(${sport.id})" title="Deletar">🗑️</button>
                                 </div>
-
                             </td>
                         </tr>
                     `).join('')}
@@ -767,13 +786,14 @@ function renderShirtListTable(container) {
                     <span style="font-size: 0.82em; color: var(--warning); font-weight: 600;">&#9650; ${pendingCount} pendentes</span>
                 </div>
             </div>
-            <button class="btn btn-secondary" onclick="window.print()">&#128424;&#65039; Imprimir</button>
+            <button class="btn btn-secondary" onclick="window.printShirtList()">&#128424;&#65039; Imprimir PDF</button>
         </div>
         <div class="table-container">
             <table class="table">
                 <thead>
                     <tr>
                         <th>Nome Completo</th>
+                        <th>Turma</th>
                         <th>N&#186; Camisa</th>
                         <th>Nome na Camisa</th>
                         <th>Tamanho</th>
@@ -786,6 +806,7 @@ function renderShirtListTable(container) {
                     ${allStudents.map(user => `
                         <tr>
                             <td>${user.nome}</td>
+                            <td><span class="badge badge-info">${user.turma || '-'}</span></td>
                             <td><span class="badge badge-primary" style="font-size: 1.1em;">${user.numero_camisa || '-'}</span></td>
                             <td>${user.apelido || '-'}</td>
                             <td><strong>${user.tamanho_camisa || '-'}</strong></td>
@@ -828,6 +849,86 @@ window.toggleCamisaPaga = async function (userId) {
     }
 }
 
+window.printShirtList = function () {
+    // Filtrar apenas quem tem pedido E já pagou
+    const users = state.users.filter(u => u.tamanho_camisa && u.camisa_paga);
+    if (users.length === 0) {
+        showToast('Nenhum pedido PAGO encontrado para imprimir.', 'warning');
+        return;
+    }
+
+    const printWindow = window.open('', '_blank');
+
+    let rows = users.map(user => `
+        <tr>
+            <td style="padding: 10px; border: 1px solid #ddd;">${user.nome}</td>
+            <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${user.turma || '-'}</td>
+            <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${user.apelido || '-'}</td>
+            <td style="padding: 10px; border: 1px solid #ddd; text-align: center; font-weight: bold;">${user.numero_camisa || '-'}</td>
+            <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${user.tamanho_camisa || '-'}</td>
+            <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${user.quantidade_camisa || 1}</td>
+        </tr>
+    `).join('');
+
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <title>Pedidos Pagos - CC UNIP</title>
+            <style>
+                body { font-family: 'Inter', sans-serif; padding: 40px; color: #333; }
+                .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #16a34a; padding-bottom: 20px; }
+                h1 { margin: 0; color: #15803d; font-size: 24px; text-transform: uppercase; }
+                p { margin: 5px 0; color: #666; font-weight: bold; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+                th { background-color: #16a34a; color: white; padding: 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border: 1px solid #15803d; }
+                td { font-size: 13px; }
+                .footer { margin-top: 40px; text-align: right; font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
+                @media print {
+                    @page { margin: 1cm; }
+                    body { padding: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Pedidos CONFIRMADOS (Pagos) - Camisas CC UNIP</h1>
+                <p>Lista de Produção Consolidada</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30%;">Nome Completo</th>
+                        <th style="width: 10%;">Turma</th>
+                        <th style="width: 20%;">Apelido da Camisa</th>
+                        <th style="width: 15%;">Nº Camisa</th>
+                        <th style="width: 10%;">Tamanho</th>
+                        <th style="width: 15%;">Quantidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+            <div class="footer">
+                Documento gerado em: ${new Date().toLocaleString('pt-BR')} <br>
+                Total de pedidos confirmados: ${users.length} | Responsável: Representante de Turma
+            </div>
+            <script>
+                window.onload = function() {
+                    setTimeout(() => {
+                        window.print();
+                        window.onafterprint = function() { window.close(); };
+                    }, 500);
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+}
+
 // ==================== PROFILE EDITING ====================
 window.showEditProfile = function () {
     if (!state.user) return;
@@ -845,7 +946,7 @@ window.showEditProfile = function () {
             </div>
             <p class="text-secondary mb-md" style="font-size: 0.9em;">* O número deve ser único no sistema.</p>
         </form>
-    `;
+        `;
     showModal('Editar Meu Perfil', content, [
         { label: 'Cancelar', class: 'btn-secondary', onclick: 'closeModal()' },
         { label: 'Salvar', class: 'btn-primary', onclick: 'window.handleProfileUpdate(null)' }
@@ -865,7 +966,7 @@ window.handleProfileUpdate = async function (event) {
             numero_camisa: num ? parseInt(num) : null
         };
 
-        await apiCall(`/api/users/${state.user.id}`, {
+        await apiCall(`/ api / users / ${state.user.id} `, {
             method: 'PUT',
             body: JSON.stringify(payload)
         });
@@ -893,7 +994,7 @@ window.handleEditUser = async function (event, userId) {
     const semestre = formData.get('semestre');
     const numeroCamisa = formData.get('numero_camisa');
     try {
-        await apiCall(`/api/users/${userId}`, {
+        await apiCall(`/ api / users / ${userId} `, {
             method: 'PUT',
             body: JSON.stringify({
                 nome: formData.get('nome'),
@@ -917,7 +1018,7 @@ window.showEditUserModal = function (userId) {
     const user = state.users.find(u => u.id === userId);
     if (!user) return;
     const content = `
-        <form id="editUserForm" onsubmit="event.preventDefault(); window.handleEditUser(event, ${userId})">
+        < form id = "editUserForm" onsubmit = "event.preventDefault(); window.handleEditUser(event, ${userId})" >
             <div class="grid grid-2">
                 <div class="form-group"><label class="form-label">Nome</label><input type="text" class="form-input" name="nome" value="${user.nome}" required></div>
                 <div class="form-group"><label class="form-label">RA</label><input type="text" class="form-input" value="${user.ra}" disabled></div>
@@ -946,8 +1047,8 @@ window.showEditUserModal = function (userId) {
                     <option value="Admin" ${user.cargo === 'Admin' ? 'selected' : ''}>Admin</option>
                 </select>
             </div>
-        </form>
-    `;
+        </form >
+        `;
     showModal('Editar Usuário', content, [
         { label: 'Cancelar', class: 'btn-secondary', onclick: 'closeModal()' },
         { label: 'Salvar', class: 'btn-primary', onclick: `window.handleEditUser(null, ${userId})` }
@@ -971,7 +1072,7 @@ window.handleCreatePost = async function (event) {
 
 window.showCreatePostModal = function () {
     const content = `
-        <form id="createPostForm" onsubmit="event.preventDefault(); window.handleCreatePost(event)">
+        < form id = "createPostForm" onsubmit = "event.preventDefault(); window.handleCreatePost(event)" >
             <div class="form-group"><label class="form-label">Título</label><input type="text" class="form-input" name="titulo" required></div>
             <div class="form-group"><label class="form-label">Tipo</label>
                 <select class="form-select" name="tipo" required>
@@ -986,8 +1087,8 @@ window.showCreatePostModal = function () {
                 <label class="btn btn-secondary" for="post-image-input" style="display:inline-block; cursor:pointer;">📷 Escolher Imagem</label>
                 <input type="file" id="post-image-input" class="form-file-input" name="imagem" accept="image/*" style="display:none;" onchange="this.previousElementSibling.textContent = this.files[0] ? '✅ ' + this.files[0].name : '📷 Escolher Imagem'">
             </div>
-        </form>
-    `;
+        </form >
+        `;
     showModal('Nova Postagem', content, [
         { label: 'Cancelar', class: 'btn-secondary', onclick: 'closeModal()' },
         { label: 'Criar', class: 'btn-primary', onclick: 'window.handleCreatePost(null)' }
@@ -1014,14 +1115,50 @@ window.handleCreateSport = async function (event) {
 
 window.showCreateSportModal = function () {
     const content = `
-        <form id="createSportForm" onsubmit="event.preventDefault(); window.handleCreateSport(event)">
+        < form id = "createSportForm" onsubmit = "event.preventDefault(); window.handleCreateSport(event)" >
             <div class="form-group"><label class="form-label">Nome do Esporte</label><input type="text" class="form-input" name="nome" required></div>
             <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-textarea" name="descricao"></textarea></div>
-        </form>
-    `;
+        </form >
+        `;
     showModal('Novo Esporte', content, [
         { label: 'Cancelar', class: 'btn-secondary', onclick: 'closeModal()' },
         { label: 'Criar', class: 'btn-success', onclick: 'window.handleCreateSport(null)' }
+    ]);
+};
+
+window.handleEditSport = async function (event, sportId) {
+    if (event) event.preventDefault();
+    const form = document.getElementById('editSportForm');
+    if (!form) return;
+    const formData = new FormData(form);
+    try {
+        await apiCall(`/ api / sports / ${sportId} `, {
+            method: 'PUT',
+            body: JSON.stringify({
+                nome: formData.get('nome'),
+                descricao: formData.get('descricao')
+            })
+        });
+        showToast('Esporte atualizado com sucesso!', 'success');
+        closeModal();
+        if (typeof renderAdmin === 'function') renderAdmin(document.getElementById('mainContent'));
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+};
+
+window.showEditSportModal = function (sportId) {
+    const sport = state.sports.find(s => s.id === sportId);
+    if (!sport) return;
+    const content = `
+        < form id = "editSportForm" onsubmit = "event.preventDefault(); window.handleEditSport(event, ${sportId})" >
+            <div class="form-group"><label class="form-label">Nome do Esporte</label><input type="text" class="form-input" name="nome" value="${sport.nome}" required></div>
+            <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-textarea" name="descricao">${sport.descricao || ''}</textarea></div>
+        </form >
+        `;
+    showModal('Editar Esporte', content, [
+        { label: 'Cancelar', class: 'btn-secondary', onclick: 'closeModal()' },
+        { label: 'Salvar', class: 'btn-primary', onclick: `window.handleEditSport(null, ${sportId})` }
     ]);
 };
 
@@ -1107,7 +1244,7 @@ function renderShirtOrder(container) {
                 </div>
             </div>
         </div>
-    `;
+        `;
 
     // Attach live preview handler
     window.updatePreview = function () {
@@ -1181,6 +1318,78 @@ window.deleteSport = async function (sportId) {
         await apiCall(`/api/sports/${sportId}`, { method: 'DELETE' });
         showToast('Esporte deletado com sucesso!', 'success');
         if (typeof renderAdmin === 'function') renderAdmin(document.getElementById('mainContent'));
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+};
+
+window.showSportParticipants = function (sportId) {
+    const sport = state.sports.find(s => s.id === sportId);
+    if (!sport) return;
+
+    const participants = sport.participants || [];
+
+    const content = `
+        <div class="mb-lg">
+            <p class="text-secondary">Total de inscritos: <strong>${participants.length}</strong></p>
+        </div>
+        ${participants.length === 0 ? '<p class="text-center p-xl">Nenhum aluno inscrito neste esporte ainda.</p>' : `
+            <div class="table-container">
+                <table class="table" style="font-size: 0.9rem;">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Turma</th>
+                            <th>Status Atleta</th>
+                            <th>Seleção</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${participants.map(p => `
+                            <tr>
+                                <td>${p.nome}</td>
+                                <td>${p.turma}</td>
+                                <td>
+                                    <span class="badge ${p.status_esporte === 'Titular' ? 'badge-success' : 'badge-info'}">
+                                        ${p.status_esporte || 'Inscrito'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-small ${p.status_esporte === 'Titular' ? 'btn-secondary' : 'btn-primary'}" 
+                                            onclick="window.updateParticipantStatus(${p.id}, ${sport.id}, '${p.status_esporte === 'Titular' ? 'Inscrito' : 'Titular'}')">
+                                        ${p.status_esporte === 'Titular' ? 'Remover Titular' : 'Tornar Titular'}
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `}
+    `;
+
+    showModal(`Inscritos: ${sport.nome}`, content, [
+        { label: 'Fechar', class: 'btn-secondary', onclick: 'closeModal()' }
+    ]);
+};
+
+window.updateParticipantStatus = async function (userId, sportId, newStatus) {
+    try {
+        await apiCall(`/api/users/${userId}/esporte-status`, {
+            method: 'POST',
+            body: JSON.stringify({ status: newStatus })
+        });
+
+        showToast(`Status atualizado para ${newStatus}!`, 'success');
+
+        // Refresh local data to show changes in modal without closing it
+        const [updatedSports] = await Promise.all([
+            apiCall('/api/sports?include_participants=true')
+        ]);
+        state.sports = updatedSports;
+
+        // Re-render the same modal to show updated status
+        window.showSportParticipants(sportId);
     } catch (error) {
         showToast(error.message, 'error');
     }
